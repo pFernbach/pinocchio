@@ -20,36 +20,57 @@ import time
 
 class RobotWrapper(object):
 
-    def __init__(self, filename, package_dirs=None, root_joint=None, verbose=False):
+    def initFromURDF(self,filename, package_dirs=None, root_joint=None, verbose=False):
         if root_joint is None:
-            self.model = se3.buildModelFromUrdf(filename)
+            model = se3.buildModelFromUrdf(filename)
         else:
-            self.model = se3.buildModelFromUrdf(filename, root_joint)
-
-        self.data = self.model.createData()
-        self.model_filename = filename
+            model = se3.buildModelFromUrdf(filename, root_joint)
 
         if "buildGeomFromUrdf" not in dir(se3):
-            self.collision_model = None
-            self.visual_model = None
+            collision_model = None
+            visual_model = None
+            if verbose:
+                print 'Info: the Geometry Module has not been compiled with Pinocchio. No geometry model and data have been built.'
+        else:
+            if package_dirs is None:
+                collision_model = se3.buildGeomFromUrdf(model, filename)
+                visual_model = se3.buildGeomFromUrdf(model, filename)
+            else:
+                if not all(isinstance(item, basestring) for item in package_dirs):
+                    raise Exception('The list of package directories is wrong. At least one is not a string')
+                else:
+                    collision_model = se3.buildGeomFromUrdf(model, filename,
+                                                            utils.fromListToVectorOfString(package_dirs), se3.GeometryType.COLLISION)
+                    visual_model = se3.buildGeomFromUrdf(model, filename,
+                                                         utils.fromListToVectorOfString(package_dirs), se3.GeometryType.VISUAL)
+
+
+        RobotWrapper.__init__(self,model=model,collision_model=collision_model,visual_model=visual_model)
+
+
+    def __init__(self, model = se3.Model(), collision_model = None, visual_model = None, verbose=False):
+        
+        self.model = model
+        self.data = self.model.createData()
+
+        self.collision_model = collision_model
+        self.visual_model = visual_model
+
+        if "buildGeomFromUrdf" not in dir(se3):
             self.collision_data = None
             self.visual_data = None
             if verbose:
                 print 'Info: the Geometry Module has not been compiled with Pinocchio. No geometry model and data have been built.'
         else:
-            if package_dirs is None:
-                self.collision_model = se3.buildGeomFromUrdf(self.model, filename)
-                self.visual_model = se3.buildGeomFromUrdf(self.model, filename)
+            if self.collision_model is None:
+                self.collision_data = None
             else:
-                if not all(isinstance(item, basestring) for item in package_dirs):
-                    raise Exception('The list of package directories is wrong. At least one is not a string')
-                else:
-                    self.collision_model = se3.buildGeomFromUrdf(self.model, filename,
-                                                                utils.fromListToVectorOfString(package_dirs), se3.GeometryType.COLLISION)
-                    self.visual_model = se3.buildGeomFromUrdf(self.model, filename,
-                                                                utils.fromListToVectorOfString(package_dirs), se3.GeometryType.VISUAL)
-            self.collision_data = se3.GeometryData(self.collision_model)
-            self.visual_data = se3.GeometryData(self.visual_model)
+                self.collision_data = se3.GeometryData(self.collision_model)
+
+            if self.visual_model is None:
+                self.visual_data = None
+            else:
+                self.visual_data = se3.GeometryData(self.visual_model)
 
         self.v0 = utils.zero(self.nv)
         self.q0 = utils.zero(self.nq)
