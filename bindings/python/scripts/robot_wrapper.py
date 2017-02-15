@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015-2016 CNRS
+# Copyright (c) 2015-2017 CNRS
 #
 # This file is part of Pinocchio
 # Pinocchio is free software: you can redistribute it
@@ -75,17 +75,25 @@ class RobotWrapper(object):
             return self.data.com[0], self.data.vcom[0], self.data.acom[0]
         return se3.centerOfMass(self.model, self.data, q, update_kinematics)
 
-    def Jcom(self, q):
-        return se3.jacobianCenterOfMass(self.model, self.data, q)
+    def Jcom(self, q, update_kinematics=True):
+        if(update_kinematics):
+            se3.jacobianCenterOfMass(self.model, self.data, q)
+        return self.data.Jcom
 
-    def mass(self, q):
-        return se3.crba(self.model, self.data, q)
+    def mass(self, q, update_kinematics=True):
+        if(update_kinematics):
+            se3.crba(self.model, self.data, q)
+        return self.data.M
 
-    def bias(self, q, v):
-        return se3.nle(self.model, self.data, q, v)
+    def bias(self, q, v, update_kinematics=True):
+        if(update_kinematics):
+            se3.nle(self.model, self.data, q, v)
+        return self.data.nle
 
-    def gravity(self, q):
-        return se3.rnea(self.model, self.data, q, self.v0, self.v0)
+    def gravity(self, q, update_kinematics=True):
+        if(update_kinematics):
+            se3.nle(self.model, self.data, q, 0.*self.v0)
+        return self.data.nle
 
     def forwardKinematics(self, q, v=None, a=None):
         if v is not None:
@@ -95,6 +103,79 @@ class RobotWrapper(object):
                 se3.forwardKinematics(self.model, self.data, q, v)
         else:
             se3.forwardKinematics(self.model, self.data, q)
+
+    def computeAllTerms(self, q, v): 
+        return se3.computeAllTerms(self.model, self.data, q, v); 
+
+    def framesKinematics(self, q=None, update_kinematics=True): 
+        if(update_kinematics):
+            if q is not None:
+                se3.framesKinematics(self.model, self.data, q)
+            else:
+                raise ValueError("q must be provided if update_kinematics is True")
+        else:
+              se3.framesKinematics(self.model, self.data)
+    
+    def framePosition(self, index):
+        f = self.model.frames[index]
+        return self.data.oMi[f.parent].act(f.placement)
+
+    def frameVelocity(self, index, local=True):
+        """
+        Returns the spatial velocity of the frame expressed either in the local or 
+        world frame depending on local value. 
+        Keyword arguments:
+        index -- index of the frame
+        local -- expresses the spatial velocity in the local frame if True (optional)
+        """
+        f = self.model.frames[index]
+        v_local = f.placement.actInv(self.data.v[f.parent])
+        if local:
+            return v_local
+        else:
+            M_frame = self.framePosition(index)
+            M = se3.SE3.Identity()
+            M.rotation = M_frame.rotation
+            return M.act(v_local)
+
+    def frameAcceleration(self, index, local=True):
+        """
+        Returns the spatial acceleration of the frame expressed either in the local or 
+        world frame depending on local value. 
+        Keyword arguments:
+        index -- index of the frame
+        local -- expresses the spatial velocity in the local frame if True (optional)
+        """
+        f = self.model.frames[index]
+        a_local = f.placement.actInv(self.data.a[f.parent])
+        if local:
+            return a_local
+        else:
+            M_frame = self.framePosition(index)
+            M = se3.SE3.Identity()
+            M.rotation = M_frame.rotation
+            return M.act(a_local)
+
+
+    def frameClassicAcceleration(self, index, local=True):
+        f = self.model.frames[index]
+        a_local = f.placement.actInv(self.data.a[f.parent])
+        v_local = f.placement.actInv(self.data.v[f.parent])
+        a_local.linear += np.cross(v_local.angular, v_local.linear, axis=0)
+        if local:
+            return a_local
+        else:
+            M_frame = self.framePosition(index)
+            M = se3.SE3.Identity()
+            M.rotation = M_frame.rotation
+            return M.act(a_local)
+
+    def frameJacobian(self, q, index, update_geometry=True, local_frame=True):
+        ''' Call computeJacobians if update_geometry is true. If not, user should call computeJacobians first.
+        Attention: if update_geometry is true, the function computes all the jacobians of the model. 
+        It is therefore outrageously costly wrt a dedicated call. Use only with update_geometry for prototyping.
+        '''
+        return se3.frameJacobian(self.model, self.data, q, index, local_frame, update_geometry)
 
     def position(self, q, index, update_kinematics=True):
         if update_kinematics:
@@ -213,5 +294,32 @@ class RobotWrapper(object):
             elapsed_time = t1 - t0
             if elapsed_time < dt:
                 time.sleep(dt - elapsed_time)
+
+    def deactivateCollisionPairs(self, collision_pair_indexes):
+        for i in collision_pair_indexes:
+            self.collision_data.deactivateCollisionPair(i);
+
+    def addAllCollisionPairs(self):
+        self.collision_model.addAllCollisionPairs();
+        self.collision_data = se3.GeometryData(self.collision_model);
+
+    def isInCollision(self, q, stop_at_first_collision=True):
+        return se3.computeCollisions(self.model, self.data, self.collision_model, self.collision_data, q, stop_at_first_collision);
+
+    def findFirstCollisionPair(self, consider_only_active_collision_pairs=True):
+        for i in range(len(self.collision_model.collisionPairs)):
+            if(not consider_only_active_collision_pairs or self.collision_data.activeCollisionPairs[i]):
+                if(se3.computeCollision(self.collision_model, self.collision_data, i)):
+                    return (i, self.collision_model.collisionPairs[i]);
+        return None;
+
+    def findAllCollisionPairs(self, consider_only_active_collision_pairs=True):
+        res = [];
+        for i in range(len(self.collision_model.collisionPairs)):
+            if(not consider_only_active_collision_pairs or self.collision_data.activeCollisionPairs[i]):
+                if(se3.computeCollision(self.collision_model, self.collision_data, i)):
+                    res += [(i, self.collision_model.collisionPairs[i])];
+        return res;
+
 
 __all__ = ['RobotWrapper']
