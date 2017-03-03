@@ -118,6 +118,8 @@ namespace se3
     typedef typename Base::DenseBase DenseBase;
     
     enum { NV = _Dim, Options = _Options };
+    
+    using Base::nv;
 
   public:
     template<typename D>
@@ -173,7 +175,7 @@ namespace se3
     DenseBase & matrix_impl() { return S; }
     const DenseBase & matrix_impl() const { return S; }
 
-    int nv_impl() const { return NV; }
+    int nv_impl() const { return (int)S.cols(); }
 
     //template<int Dim,typename Scalar,int Options>
     friend Eigen::Matrix<_Scalar,6,_Dim>
