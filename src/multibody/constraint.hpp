@@ -46,6 +46,13 @@ namespace se3
     const Derived& derived() const { return *static_cast<const Derived*>(this); }
 
     Motion operator* (const JointMotion& vj) const { return derived().__mult__(vj); }
+    
+    ///
+    /// \brief Cross action of the MotionSpace on a Motion. It is similar to the ad_{MS}.apply(v)
+    ///
+    /// \param v motion vector.
+    ///
+    DenseBase cross(const Motion & v) const { return derived().cross(v); }
 
     DenseBase & matrix()  { return derived().matrix_impl(); }
     const DenseBase & matrix() const  { return derived().matrix_impl(); }
@@ -151,6 +158,24 @@ namespace se3
     Motion __mult__(const JointMotion& vj) const 
     {
       return Motion(S*vj);
+    }
+    
+    DenseBase cross(const Motion & v) const
+    {
+      DenseBase res(6,nv());
+      for(int k = 0; k < nv(); ++k)
+      {
+        typename DenseBase::ConstColXpr col = S.col(k);
+        typename DenseBase::ColXpr res_col = res.col(k);
+        
+        res_col.template head<3>()
+        = col.template tail<3>().cross(v.linear())
+        + col.template head<3>().cross(v.angular());
+        
+        res_col.template tail<3>() = col.template tail<3>().cross(v.angular());
+      }
+      
+      return res;
     }
 
 
