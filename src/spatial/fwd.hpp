@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 // Copyright (c) 2016 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 //
 // This file is part of Pinocchio
@@ -36,6 +36,14 @@ namespace se3
   typedef Symmetric3Tpl <double,0> Symmetric3;
 
   template<class C> struct traits {};
+  
+  // Forward declaration Cartesian Axis
+  template<int axis, int dim, typename Scalar, int Options=0>
+  struct CartesianAxisTpl;
+  
+  typedef CartesianAxisTpl<0,3,double> UnitXd;
+  typedef CartesianAxisTpl<1,3,double> UnitYd;
+  typedef CartesianAxisTpl<2,3,double> UnitZd;
 
   #define SPATIAL_TYPEDEF_TEMPLATE(derived)              \
     typedef typename traits<derived>::Scalar Scalar; \
