@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 // Copyright (c) 2015-2016 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 //
 // This file is part of Pinocchio
@@ -34,26 +34,46 @@ namespace se3
 
   namespace revolute
   {
+    
     template<int axis>
     struct CartesianVector3
     {
-      double w; 
-      CartesianVector3(const double w) : w(w) {}
+      typedef double Scalar;
+      typedef Eigen::Matrix<Scalar,3,1> Vector3;
+      Scalar w;
+      CartesianVector3(const Scalar w) : w(w) {}
       CartesianVector3() : w(NAN) {}
       
-      Eigen::Vector3d vector() const;
-      operator Eigen::Vector3d () const { return vector(); }
+      inline Vector3 vector() const;
+      operator Vector3 () const { return vector(); }
     }; // struct CartesianVector3
-    template<> inline Eigen::Vector3d CartesianVector3<0>::vector() const { return Eigen::Vector3d(w,0,0); }
-    template<> inline Eigen::Vector3d CartesianVector3<1>::vector() const { return Eigen::Vector3d(0,w,0); }
-    template<> inline Eigen::Vector3d CartesianVector3<2>::vector() const { return Eigen::Vector3d(0,0,w); }
     
-    inline Eigen::Vector3d operator+ (const Eigen::Vector3d & w1,const CartesianVector3<0> & wx)
-    { return Eigen::Vector3d(w1[0]+wx.w,w1[1],w1[2]); }
-    inline Eigen::Vector3d operator+ (const Eigen::Vector3d & w1,const CartesianVector3<1> & wy)
-    { return Eigen::Vector3d(w1[0],w1[1]+wy.w,w1[2]); }
-    inline Eigen::Vector3d operator+ (const Eigen::Vector3d & w1,const CartesianVector3<2> & wz)
-    { return Eigen::Vector3d(w1[0],w1[1],w1[2]+wz.w); }
+    template<>
+    inline CartesianVector3<0>::Vector3 CartesianVector3<0>::vector() const { return Vector3(w,0,0); }
+    template<>
+    inline CartesianVector3<1>::Vector3 CartesianVector3<1>::vector() const { return Vector3(0,w,0); }
+    template<>
+    inline CartesianVector3<2>::Vector3 CartesianVector3<2>::vector() const { return Vector3(0,0,w); }
+    
+    template<typename VectorDerived>
+    inline CartesianVector3<0>::Vector3 operator+(const Eigen::MatrixBase<VectorDerived> & w1,const CartesianVector3<0> & wx)
+    {
+      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(VectorDerived,3);
+      return CartesianVector3<0>::Vector3(w1[0]+wx.w,w1[1],w1[2]);
+    }
+    template<typename VectorDerived>
+    inline CartesianVector3<1>::Vector3 operator+(const Eigen::MatrixBase<VectorDerived> & w1,const CartesianVector3<1> & wy)
+    {
+      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(VectorDerived,3);
+      return CartesianVector3<1>::Vector3(w1[0],w1[1]+wy.w,w1[2]);
+    }
+    template<typename VectorDerived>
+    inline CartesianVector3<2>::Vector3 operator+(const Eigen::MatrixBase<VectorDerived> & w1,const CartesianVector3<2> & wz)
+    {
+      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(VectorDerived,3);
+      return CartesianVector3<2>::Vector3(w1[0],w1[1],w1[2]+wz.w);
+    }
+  
   } // namespace revolute
 
 
