@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015-2016 CNRS
+# Copyright (c) 2015-2017 CNRS
 # Copyright (c) 2015 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 #
 # This file is part of Pinocchio
@@ -135,3 +135,4 @@ ADD_UNIT_TEST(algo-check eigen3)
 ADD_UNIT_TEST(joint-composite eigen3)
 
 ADD_UNIT_TEST(liegroups eigen3)
+ADD_UNIT_TEST(cartesian-axis eigen3)
