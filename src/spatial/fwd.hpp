@@ -16,13 +16,13 @@
 // Pinocchio If not, see
 // <http://www.gnu.org/licenses/>.
 
-#ifndef __se3_fwd_hpp__
-#define __se3_fwd_hpp__
-
-#include <Eigen/Core>
+#ifndef __se3_spatial_fwd_hpp__
+#define __se3_spatial_fwd_hpp__
 
 namespace se3
 {
+  template<class C> struct traits {};
+  
   template<typename _Scalar, int _Options=0> class SE3Tpl;
   template<typename _Scalar, int _Options=0> class MotionTpl;
   template<typename _Scalar, int _Options=0> class ForceTpl;
@@ -34,8 +34,6 @@ namespace se3
   typedef ForceTpl      <double,0> Force;
   typedef InertiaTpl    <double,0> Inertia;
   typedef Symmetric3Tpl <double,0> Symmetric3;
-
-  template<class C> struct traits {};
   
   // Forward declaration Cartesian Axis
   template<int axis, int dim, typename Scalar, int Options=0>
@@ -94,4 +92,4 @@ namespace se3
 
 } // namespace se3
 
-#endif // ifndef __se3_fwd_hpp__
+#endif // ifndef __se3_spatial_fwd_hpp__
