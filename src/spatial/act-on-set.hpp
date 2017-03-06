@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 //
 // This file is part of Pinocchio
 // Pinocchio is free software: you can redistribute it
@@ -39,9 +39,16 @@ namespace se3
     /* SE3 action on a set of motions, represented by a 6xN matrix whose each
      * column represent a spatial motion. */
     template<typename Mat,typename MatRet>
-    static void se3Action( const SE3 & m, 
-			   const Eigen::MatrixBase<Mat> & iV,
-			   Eigen::MatrixBase<MatRet> const & jV);
+    static void se3Action(const SE3 & m,
+                          const Eigen::MatrixBase<Mat> & iV,
+                          Eigen::MatrixBase<MatRet> const & jV);
+    
+    /* SE3 inverse action on a set of motions, represented by a 6xN matrix whose each
+    * column represent a spatial motion. */
+    template<typename Mat,typename MatRet>
+    static void se3ActionInverse(const SE3 & m,
+                                 const Eigen::MatrixBase<Mat> & iV,
+                                 Eigen::MatrixBase<MatRet> const & jV);
   }  // namespace MotionSet
 
   /* --- DETAILS --------------------------------------------------------- */
@@ -136,16 +143,6 @@ namespace se3
       static void run(const SE3 & m,
                       const Eigen::MatrixBase<Mat> & iF,
                       Eigen::MatrixBase<MatRet> const & jF);
-      // {
-      //   typename Mat::template ConstNRowsBlockXpr<3>::Type linear  = iF.template topRows<3>();
-      //   typename MatRet::template ConstNRowsBlockXpr<3>::Type angular = iF.template bottomRows<3>();
-      
-      //   jF.template topRows   <3>().noalias() = m.rotation()*linear;
-      //   jF.template bottomRows<3>().noalias()
-      // 	= skew(m.translation())*jF.template topRows<3>() +
-      //      m.rotation()*angular;
-      // }
-      
     };
 
     template<typename Mat,typename MatRet>
@@ -186,6 +183,61 @@ namespace se3
         motionSet::se3Action(m,iV.col(col),jVc);
       }
     }
+    
+    template<typename Mat,typename MatRet, int NCOLS>
+    struct MotionSetSe3ActionInverse
+    {
+      /* Compute jF = jXi-1 * iF, where jXi is the action matrix associated
+       * with m, and iF, jF are matrices whose columns are motions. The resolution
+       * is done by block operation. It is less efficient than the colwise
+       * operation and should not be used. */
+      static void run(const SE3 & m,
+                      const Eigen::MatrixBase<Mat> & iF,
+                      Eigen::MatrixBase<MatRet> const & jF);
+    };
+    
+    template<typename Mat,typename MatRet>
+    struct MotionSetSe3ActionInverse<Mat,MatRet,1>
+    {
+      /* Compute jV = jXi-1 * iV, where jXi is the action matrix associated with m,
+       * and iV, jV are 6D vectors representing spatial velocities. */
+      static void run(const SE3 & m,
+                      const Eigen::DenseBase<Mat> & iV,
+                      Eigen::DenseBase<MatRet> const & jV)
+      {
+        EIGEN_STATIC_ASSERT_VECTOR_ONLY(Mat);
+        EIGEN_STATIC_ASSERT_VECTOR_ONLY(MatRet);
+        Eigen::VectorBlock<const Mat,3> linear = iV.template head<3>();
+        Eigen::VectorBlock<const Mat,3> angular = iV.template tail<3>();
+        
+        /* ( Rt*v - (Rt*p)x(Rt*w),  Rt*w ) */
+        const_cast<Eigen::DenseBase<MatRet> &>(jV).template tail <3>()
+        = m.rotation().transpose()*angular;
+        const_cast<Eigen::DenseBase<MatRet> &>(jV).template head <3>()
+        = m.rotation().transpose()*(linear - m.translation().cross(iV.template tail<3>()));
+      }
+    };
+    
+    /* Specialized implementation of block action, using colwise operation.  It
+     * is empirically much faster than the true block operation, although I do
+     * not understand why. */
+    template<typename Mat,typename MatRet,int NCOLS>
+    void MotionSetSe3ActionInverse<Mat,MatRet,NCOLS>::
+    run(const SE3 & M,
+        const Eigen::MatrixBase<Mat> & iV,
+        Eigen::MatrixBase<MatRet> const & jV)
+    {
+      const SE3::Vector3 Rtp(M.rotation().transpose()*M.translation());
+      
+      for(int col=0;col<jV.cols();++col)
+      {
+        typename Mat::ConstColXpr iVc = iV.col(col);
+        typename MatRet::ColXpr jVc
+        = const_cast<Eigen::MatrixBase<MatRet> &>(jV).col(col);
+        
+        motionSet::se3ActionInverse(M,iVc,jVc);
+      }
+    }
 
   } // namespace internal
 
@@ -197,6 +249,14 @@ namespace se3
                           Eigen::MatrixBase<MatRet> const & jV)
     {
       internal::MotionSetSe3Action<Mat,MatRet,Mat::ColsAtCompileTime>::run(m,iV,jV);
+    }
+    
+    template<typename Mat,typename MatRet>
+    static void se3ActionInverse(const SE3 & m,
+                                 const Eigen::MatrixBase<Mat> & iV,
+                                 Eigen::MatrixBase<MatRet> const & jV)
+    {
+      internal::MotionSetSe3ActionInverse<Mat,MatRet,Mat::ColsAtCompileTime>::run(m,iV,jV);
     }
 
   }  // namespace motionSet

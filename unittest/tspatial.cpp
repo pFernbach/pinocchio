@@ -338,9 +338,14 @@ BOOST_AUTO_TEST_CASE ( test_ActOnSet )
     
 
   Matrix6N iV = Matrix6N::Random(),jV;
+  
   se3::motionSet::se3Action(jMi,iV,jV);
   for( int k=0;k<N;++k )
     BOOST_CHECK(jMi.act(se3::Motion(iV.col(k))).toVector().isApprox(jV.col(k), 1e-12));
+  
+  se3::motionSet::se3ActionInverse(jMi,iV,jV);
+  for( int k=0;k<N;++k )
+    BOOST_CHECK(jMi.actInv(se3::Motion(iV.col(k))).toVector().isApprox(jV.col(k)));
 
 }
 
