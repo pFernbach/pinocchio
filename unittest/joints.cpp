@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 // Copyright (c) 2015 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 //
 // This file is part of Pinocchio
@@ -317,10 +317,106 @@ BOOST_AUTO_TEST_CASE (vsFreeFlyer)
   BOOST_CHECK(jacobian_planar.isApprox(jacobian_expected));
 
 }
-BOOST_AUTO_TEST_SUITE_END ()
+BOOST_AUTO_TEST_SUITE_END()
+
+  
+BOOST_AUTO_TEST_SUITE(JointInternalOp)
+  
+struct CrossOpVisitor
+{
+  template<typename JointModel>
+  static void init (JointModelBase<JointModel> & /*jmodel*/) {}
+  
+  template<typename JointModel>
+  void operator()(JointModelBase<JointModel> & jmodel)
+  {
+    typedef typename JointModel::Scalar Scalar;
+    typedef typename JointModel::JointDataDerived JointData;
+    typedef typename JointModel::ConfigVector_t ConfigVector_t;
+    typedef typename JointData::Constraint_t Constraint_t;
+    init(jmodel);
+    jmodel.setIndexes(0,0,0);
+    
+    JointData jdata = jmodel.createData();
+    
+    const ConfigVector_t q(ConfigVector_t::Random(jmodel.nq()));
+    jmodel.calc(jdata,q);
+    
+    const Constraint_t & S = jdata.S;
+    typedef Eigen::Matrix<Scalar,6,JointModel::NV> ResType;
+    
+    ResType res = S.cross(Motion::Zero());
+    BOOST_CHECK(res.isZero());
+    
+    Motion v(Motion::Random());
+    res = S.cross(v);
+    ResType expected_res(ResType::Zero(6,jmodel.nv()));
+    ConstraintXd S_dense = (ConstraintXd)S;
+    
+    expected_res = S_dense.cross(v);
+    
+    BOOST_CHECK(res.isApprox(expected_res));
+  }
+};
+  
+template<>
+void CrossOpVisitor::init(JointModelBase<JointModelRevoluteUnaligned> & jmodel)
+{ jmodel.derived().axis.setRandom(); jmodel.derived().axis.normalize(); }
+  
+  
+template<>
+void CrossOpVisitor::init(JointModelBase<JointModelPrismaticUnaligned> & jmodel)
+{ jmodel.derived().axis.setRandom(); jmodel.derived().axis.normalize(); }
+  
+template<>
+void CrossOpVisitor::init(JointModelBase<JointModelComposite> & jmodel)
+{
+  jmodel.derived().addJoint(se3::JointModelRX());
+  jmodel.derived().addJoint(se3::JointModelRY());
+  jmodel.derived().addJoint(se3::JointModelRZ());
+}
+  
+BOOST_AUTO_TEST_CASE(CrossOp)
+{
+  typedef boost::mpl::vector<JointModelSphericalZYX,JointModelTranslation,JointModelRX,JointModelRY,JointModelRZ,JointModelPX,JointModelPY,JointModelPZ,JointModelRUBX,JointModelRUBY,JointModelRUBZ,JointModelRevoluteUnaligned,JointModelPrismaticUnaligned,JointModelPlanar,JointModelFreeFlyer,JointModelComposite> JointTypes;
+  boost::mpl::for_each<JointTypes>(CrossOpVisitor());
+}
+  
+BOOST_AUTO_TEST_SUITE_END()
 
 
 BOOST_AUTO_TEST_SUITE (JointSphericalZYX)
+  
+BOOST_AUTO_TEST_CASE (internal_op)
+{
+  typedef double Scalar;
+  typedef JointModelSphericalZYX JointModel;
+  typedef JointModel::JointDataDerived JointData;
+  typedef JointModel::ConfigVector_t ConfigVector_t;
+  typedef JointData::Constraint_t Constraint_t;
+  Motion v(Motion::Random());
+  
+  JointModel jmodel; jmodel.setIndexes(0,0,0);
+  JointData jdata = jmodel.createData();
+  
+  const ConfigVector_t q(ConfigVector_t::Random());
+  jmodel.calc(jdata,q);
+  
+  const Constraint_t & S = jdata.S;
+  typedef Eigen::Matrix<Scalar,6,JointModel::NV> ResType;
+  
+  ResType res = S.cross(Motion::Zero());
+  BOOST_CHECK(res.isZero());
+  
+  res = S.cross(v);
+  ResType expected_res(ResType::Zero());
+  ConstraintXd S_dense = (ConstraintXd)S;
+  
+  expected_res = S_dense.cross(v);
+  
+  BOOST_CHECK(res.isApprox(expected_res));
+  
+}
 
 BOOST_AUTO_TEST_CASE (vsFreeFlyer)
 {
@@ -853,4 +949,53 @@ BOOST_AUTO_TEST_CASE (vsRX)
 
 
 }
-BOOST_AUTO_TEST_SUITE_END ()
+BOOST_AUTO_TEST_SUITE_END()
+  
+BOOST_AUTO_TEST_SUITE(JointRevoluteTest)
+  
+BOOST_AUTO_TEST_CASE(CartesianVectorTest)
+{
+  using namespace revolute;
+  typedef CartesianVector3<0> Xaxis;
+  typedef CartesianVector3<1> Yaxis;
+  typedef CartesianVector3<2> Zaxis;
+  
+  typedef Xaxis::Vector3 Vector3;
+  const Vector3 v(Vector3::Random());
+  
+  Xaxis x(1.1);
+  Vector3 vx = x;
+  BOOST_CHECK(x.cross(v).isApprox(vx.cross(v)));
+  
+  Yaxis y(2.);
+  Vector3 vy = y;
+  BOOST_CHECK(y.cross(v).isApprox(vy.cross(v)));
+  
+  Zaxis z(3.);
+  Vector3 vz = z;
+  BOOST_CHECK(z.cross(v).isApprox(vz.cross(v)));
+  
+}
+  
+BOOST_AUTO_TEST_CASE(CartesianAxisTest)
+{
+  using namespace revolute;
+  typedef UnitXd Xaxis;
+  typedef UnitYd Yaxis;
+  typedef UnitZd Zaxis;
+  
+  typedef Xaxis::Vector Vector3;
+  const Vector3 v(Vector3::Random());
+  
+  Vector3 vx = Xaxis();
+  BOOST_CHECK(Xaxis::cross(v).isApprox(vx.cross(v)));
+  
+  Vector3 vy = Yaxis();
+  BOOST_CHECK(Yaxis::cross(v).isApprox(vy.cross(v)));
+  
+  Vector3 vz = Zaxis();
+  BOOST_CHECK(Zaxis::cross(v).isApprox(vz.cross(v)));
+  
+}
+  
+BOOST_AUTO_TEST_SUITE_END()
