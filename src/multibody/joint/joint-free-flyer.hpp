@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 // Copyright (c) 2015-2016 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 //
 // This file is part of Pinocchio
@@ -20,6 +20,7 @@
 #define __se3_joint_free_flyer_hpp__
 
 #include "pinocchio/spatial/inertia.hpp"
+#include "pinocchio/spatial/cartesian-axis.hpp"
 #include "pinocchio/multibody/joint/joint-base.hpp"
 #include "pinocchio/multibody/constraint.hpp"
 #include "pinocchio/spatial/explog.hpp"
@@ -63,13 +64,42 @@ namespace se3
   }; // traits ConstraintRevolute
 
 
-    struct ConstraintIdentity : ConstraintBase < ConstraintIdentity >
+    struct ConstraintIdentity : ConstraintBase <ConstraintIdentity>
     {
       SPATIAL_TYPEDEF_NO_TEMPLATE(ConstraintIdentity);
       enum { NV = 6, Options = 0 };
       typedef traits<ConstraintIdentity>::JointMotion JointMotion;
       typedef traits<ConstraintIdentity>::JointForce JointForce;
       typedef traits<ConstraintIdentity>::DenseBase DenseBase;
+      
+      typedef CartesianAxisTpl<0,3,Scalar,Options> UnitX;
+      typedef CartesianAxisTpl<1,3,Scalar,Options> UnitY;
+      typedef CartesianAxisTpl<2,3,Scalar,Options> UnitZ;
+      
+      DenseBase cross(const Motion & v) const
+      {
+        DenseBase res;
+        
+        UnitX::cross(v.angular(),res.col(0).segment<3>(LINEAR));
+        res.col(0).segment<3>(ANGULAR).setZero();
+        
+        UnitY::cross(v.angular(),res.col(1).segment<3>(LINEAR));
+        res.col(1).segment<3>(ANGULAR).setZero();
+        
+        UnitZ::cross(v.angular(),res.col(2).segment<3>(LINEAR));
+        res.col(2).segment<3>(ANGULAR).setZero();
+        
+        UnitX::cross(v.linear(),res.col(3).segment<3>(LINEAR));
+        UnitX::cross(v.angular(),res.col(3).segment<3>(ANGULAR));
+        
+        UnitY::cross(v.linear(),res.col(4).segment<3>(LINEAR));
+        UnitY::cross(v.angular(),res.col(4).segment<3>(ANGULAR));
+        
+        UnitZ::cross(v.linear(),res.col(5).segment<3>(LINEAR));
+        UnitZ::cross(v.angular(),res.col(5).segment<3>(ANGULAR));
+        
+        return res;
+      }
 
       SE3::Matrix6 se3Action(const SE3 & m) const { return m.toActionMatrix(); }
 

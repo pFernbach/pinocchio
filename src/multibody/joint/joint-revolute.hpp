@@ -20,6 +20,7 @@
 #define __se3_joint_revolute_hpp__
 
 #include "pinocchio/math/sincos.hpp"
+#include "pinocchio/spatial/cartesian-axis.hpp"
 #include "pinocchio/spatial/inertia.hpp"
 #include "pinocchio/multibody/constraint.hpp"
 #include "pinocchio/multibody/joint/joint-base.hpp"
@@ -46,6 +47,13 @@ namespace se3
       
       inline Vector3 vector() const;
       operator Vector3 () const { return vector(); }
+      
+      template<typename VectorDerived, typename ReturnType>
+      void cross(const Eigen::MatrixBase<VectorDerived> & v, Eigen::MatrixBase<ReturnType> const & res) const;
+      
+      template<typename VectorDerived>
+      Vector3 cross(const Eigen::MatrixBase<VectorDerived> & v) const
+      { Vector3 res; cross(v,res); return res; }
     }; // struct CartesianVector3
     
     template<>
@@ -54,6 +62,43 @@ namespace se3
     inline CartesianVector3<1>::Vector3 CartesianVector3<1>::vector() const { return Vector3(0,w,0); }
     template<>
     inline CartesianVector3<2>::Vector3 CartesianVector3<2>::vector() const { return Vector3(0,0,w); }
+    
+    template<>
+    template<typename VectorDerived, typename ReturnType>
+    void CartesianVector3<0>::cross(const Eigen::MatrixBase<VectorDerived> & v,
+                                    Eigen::MatrixBase<ReturnType> const & res) const
+    {
+      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(VectorDerived,3);
+      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(ReturnType,3);
+      
+      Eigen::MatrixBase<ReturnType> & res_ = const_cast<Eigen::MatrixBase<ReturnType> &>(res);
+      res_[0] = 0.; res_[1] = -w*v[2]; res_[2] = w*v[1];
+    }
+    
+    template<>
+    template<typename VectorDerived, typename ReturnType>
+    void CartesianVector3<1>::cross(const Eigen::MatrixBase<VectorDerived> & v,
+                                    Eigen::MatrixBase<ReturnType> const & res) const
+    {
+      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(VectorDerived,3);
+      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(ReturnType,3);
+      
+      Eigen::MatrixBase<ReturnType> & res_ = const_cast<Eigen::MatrixBase<ReturnType> &>(res);
+      res_[0] = w*v[2]; res_[1] = 0.; res_[2] = -w*v[0];
+    }
+    
+    template<>
+    template<typename VectorDerived, typename ReturnType>
+    void CartesianVector3<2>::cross(const Eigen::MatrixBase<VectorDerived> & v,
+                                    Eigen::MatrixBase<ReturnType> const & res) const
+    {
+      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(VectorDerived,3);
+      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(ReturnType,3);
+      
+      Eigen::MatrixBase<ReturnType> & res_ = const_cast<Eigen::MatrixBase<ReturnType> &>(res);
+      res_[0] = -w*v[1]; res_[1] = w*v[0]; res_[2] = 0.;
+    }
+    
     
     template<typename VectorDerived>
     inline CartesianVector3<0>::Vector3 operator+(const Eigen::MatrixBase<VectorDerived> & w1,const CartesianVector3<0> & wx)
@@ -161,18 +206,29 @@ namespace se3
     typedef Eigen::Matrix<Scalar,6,1> DenseBase;
   }; // traits ConstraintRevolute
 
-  template<int axis>
-  struct ConstraintRevolute : ConstraintBase < ConstraintRevolute <axis > >
+  template<int _axis>
+  struct ConstraintRevolute : ConstraintBase < ConstraintRevolute <_axis > >
   { 
     SPATIAL_TYPEDEF_TEMPLATE(ConstraintRevolute);
-    enum { NV = 1, Options = 0 };
+    enum { NV = 1, Options = 0, axis = _axis };
     typedef typename traits<ConstraintRevolute>::JointMotion JointMotion;
     typedef typename traits<ConstraintRevolute>::JointForce JointForce;
     typedef typename traits<ConstraintRevolute>::DenseBase DenseBase;
+    
+    typedef CartesianAxisTpl<axis,3,Scalar,Options> CartesianAxis;
 
     template<typename D>
     MotionRevolute<axis> operator*( const Eigen::MatrixBase<D> & v ) const
     { return MotionRevolute<axis>(v[0]); }
+    
+    DenseBase cross(const Motion & v) const
+    {
+      DenseBase res;
+      CartesianAxis::cross(v.linear(),res.template segment<3>(LINEAR));
+      CartesianAxis::cross(v.angular(),res.template segment<3>(ANGULAR));
+      
+      return res;
+    }
 
     Eigen::Matrix<double,6,1> se3Action(const SE3 & m) const
     { 

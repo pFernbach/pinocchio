@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 // Copyright (c) 2015-2016 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 //
 // This file is part of Pinocchio
@@ -130,6 +130,15 @@ namespace se3
       { 
       	EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(D,1);
       	return MotionRevoluteUnaligned(axis,v[0]); 
+      }
+    
+      DenseBase cross(const Motion & v) const
+      {
+        DenseBase res;
+        res.segment<3>(LINEAR) = axis.cross(v.linear());
+        res.segment<3>(ANGULAR) = axis.cross(v.angular());
+        
+        return res;
       }
 
       Eigen::Matrix<double,6,1> se3Action(const SE3 & m) const

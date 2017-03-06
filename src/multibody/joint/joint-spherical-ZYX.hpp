@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 // Copyright (c) 2015-2016 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 //
 // This file is part of Pinocchio
@@ -34,7 +34,11 @@ namespace se3
   struct JointSphericalZYXTpl
   {
     typedef _Scalar Scalar;
-    enum { Options = _Options };
+    enum {
+      Options = _Options,
+      LINEAR = 0,
+      ANGULAR = 3
+    };
     typedef Eigen::Matrix<Scalar,3,1,Options> Vector3;
     typedef Eigen::Matrix<Scalar,3,3,Options> Matrix3;
     typedef Eigen::Matrix<Scalar,6,1,Options> Vector6;
@@ -60,8 +64,10 @@ namespace se3
 
     }; // struct BiasSpherical
 
-    inline friend const Motion operator+ (const Motion & v, const BiasSpherical & c) { return Motion (v.linear (), v.angular () + c ()); }
-    inline friend const Motion operator+ (const BiasSpherical & c, const Motion & v) { return Motion (v.linear (), v.angular () + c ()); }
+    inline friend Motion operator+(const Motion & v, const BiasSpherical & c)
+    { return Motion (v.linear(), v.angular() + c()); }
+    inline friend Motion operator+(const BiasSpherical & c, const Motion & v)
+    { return Motion (v.linear(), v.angular() + c()); }
 
     struct MotionSpherical
     {
@@ -97,7 +103,6 @@ namespace se3
       typedef Eigen::Matrix <_Scalar,3,1,_Options> Vector3;
       typedef Eigen::Matrix <_Scalar,6,3,_Options> ConstraintDense;
 
-      Matrix3 S_minimal;
 
       Motion operator* (const MotionSpherical & vj) const
       { return Motion (Motion::Vector3::Zero (), S_minimal * vj ()); }
@@ -110,6 +115,46 @@ namespace se3
 
       Matrix3 & matrix () { return S_minimal; }
       const Matrix3 & matrix () const { return S_minimal; }
+      
+      void calc(const Scalar & c1, const Scalar & s1,
+                const Scalar & c2, const Scalar & s2)
+      {
+        m_c1 = c1; m_s1 = s1;
+        m_c2 = c2; m_s2 = s2;
+        S_minimal <<  -s1, 0., 1., c1 * s2, c2, 0, c1 * c2, -s2, 0;
+      }
+      
+      template<typename D>
+      MotionSpherical operator*(const Eigen::MatrixBase<D> & qdot) const
+      {
+        EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(D,3);
+        MotionSpherical res;
+        res.w[0] = S_minimal(0,0) * qdot[0] + qdot[2];
+        res.w[1] = S_minimal(1,0) * qdot[0] + S_minimal(1,1) * qdot[1];
+        res.w[2] = S_minimal(2,0) * qdot[0] + S_minimal(2,1) * qdot[1];
+        
+        return res;
+      }
+      
+      Eigen::Matrix<Scalar,6,3> cross(const Motion & v) const
+      {
+        typedef Eigen::Matrix<Scalar,6,3> ReturnType;
+        ReturnType res(ReturnType::Zero());
+        
+        res.col(0).template segment<3>(LINEAR) = S_minimal.col(0).cross(v.linear());
+        res.col(0).template segment<3>(ANGULAR) = S_minimal.col(0).cross(v.angular());
+        
+        res.col(1).template segment<3>(LINEAR) = S_minimal.col(1).cross(v.linear());
+        res.col(1).template segment<3>(ANGULAR) = S_minimal.col(1).cross(v.angular());
+        
+        res.col(2).template segment<3>(LINEAR)[1] = -v.linear()[2];
+        res.col(2).template segment<3>(LINEAR)[2] = v.linear()[1];
+        
+        res.col(2).template segment<3>(ANGULAR)[1] = -v.angular()[2];
+        res.col(2).template segment<3>(ANGULAR)[2] = v.angular()[1];
+        
+        return res;
+      }
 
       int nv_impl() const { return NV; }
 
@@ -153,9 +198,53 @@ namespace se3
           EIGEN_STATIC_ASSERT(D::RowsAtCompileTime==6,THIS_METHOD_IS_ONLY_FOR_MATRICES_OF_A_SPECIFIC_SIZE)
           return ref.S_minimal.transpose () * F.template bottomRows<3> ();
         }
+        
       }; // struct ConstraintTranspose
 
       ConstraintTranspose transpose () const { return ConstraintTranspose(*this); }
+      
+      struct ConstraintDerivative
+      {
+        
+        ConstraintDerivative(const ConstraintRotationalSubspace & ref) : ref(ref) {}
+        
+        Eigen::Matrix<Scalar,6,3> cross(const Motion & v) const
+        {
+          typedef Eigen::Matrix<Scalar,6,3> ReturnType;
+          typedef Eigen::Matrix<Scalar,3,1> Vector3;
+          
+          const Scalar & c1 = ref.m_c1;
+          const Scalar & s1 = ref.m_s1;
+          const Scalar & c2 = ref.m_c2;
+          const Scalar & s2 = ref.m_s2;
+          
+          const Scalar s1s2 = s1 * s2;
+          const Scalar s1c2 = s1 * c2;
+          const Scalar c1c2 = c1 * c2;
+          const Scalar c1s2 = c1 * s2;
+          
+          const Vector3 col0; col0 << -c1, -s1s2, -s1c2;
+          const Vector3 col1; col1 << 0., c1c2, -c1s2;
+          const Vector3 col2; col2 << 0., -s2, -c2;
+          
+          ReturnType res(ReturnType::Zero());
+          
+          res.col(0).template head<3>() = col0.cross(v.linear());
+          res.col(0).template tail<3>() = col0.cross(v.angular());
+          
+          res.col(1).template head<3>() = col1.cross(v.linear());
+          
+          
+          return res;
+          
+        }
+        
+        
+      protected:
+        const ConstraintRotationalSubspace & ref;
+      };
+      
+      ConstraintDerivative diff() const { return ConstraintDerivative(*this); }
 
       operator ConstraintXd () const
       {
@@ -186,15 +275,17 @@ namespace se3
                                  
         return result;
       }
+      
+      protected:
+        
+      // Scalar values containing the cosinus and sinus of q1 and q2
+      Scalar m_c1, m_s1, m_c2, m_s2;
+      
+      // Minimal matrix representation of the constraint
+      Matrix3 S_minimal;
+      
 
     }; // struct ConstraintRotationalSubspace
-
-    template<typename D>
-    friend Motion operator* (const ConstraintRotationalSubspace & S, const Eigen::MatrixBase<D> & v)
-    {
-      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(D,3);
-      return Motion (Motion::Vector3::Zero (), S () * v);
-    }
 
   }; // struct JointSphericalZYX
 
@@ -344,7 +435,8 @@ namespace se3
                 c1 * s2,
                 c1 * c2;
 
-      data.S.matrix () <<  -s1, 0., 1., c1 * s2, c2, 0, c1 * c2, -s2, 0;
+      // Calc S from cosines and sines
+      data.S.calc(c1,s1,c2,s2);
     }
 
     void calc (JointDataDerived & data,
@@ -368,10 +460,10 @@ namespace se3
                 c1 * s2,
                 c1 * c2;
 
+      // Calc S from cosines and sines
+      data.S.calc(c1,s1,c2,s2);
 
-      data.S.matrix () <<  -s1, 0., 1., c1 * s2, c2, 0, c1 * c2, -s2, 0;
-
-      data.v () = data.S.matrix () * q_dot;
+      data.v () = data.S * q_dot;
 
       data.c ()(0) = -c1 * q_dot (0) * q_dot (1);
       data.c ()(1) = -s1 * s2 * q_dot (0) * q_dot (1) + c1 * c2 * q_dot (0) * q_dot (2) - s2 * q_dot (1) * q_dot (2);

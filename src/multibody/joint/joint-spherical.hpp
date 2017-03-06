@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 // Copyright (c) 2015-2016 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 //
 // This file is part of Pinocchio
@@ -63,7 +63,9 @@ namespace se3
     SPATIAL_TYPEDEF_NO_TEMPLATE(MotionSpherical);
 
     MotionSpherical ()                   : w (Motion::Vector3(NAN, NAN, NAN)) {}
-    MotionSpherical (const Motion::Vector3 & w) : w (w)  {}
+    template<typename VectorDerived>
+    MotionSpherical(const Eigen::MatrixBase<VectorDerived> & w): w(w)
+    {EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(VectorDerived,3);}
     Motion::Vector3 w;
 
     Motion::Vector3 & operator() () { return w; }
@@ -71,7 +73,7 @@ namespace se3
 
     operator Motion() const
     {
-      return Motion (Motion::Vector3::Zero (), w);
+      return Motion (Motion::Vector3::Zero(),w);
     }
   }; // struct MotionSpherical
 
@@ -121,12 +123,43 @@ namespace se3
     typedef traits<ConstraintRotationalSubspace>::JointForce JointForce;
     typedef traits<ConstraintRotationalSubspace>::DenseBase DenseBase;
 
-    /// Missing operator*
-    // Motion operator* (const MotionSpherical & vj) const
-    // { return ??; }
+    template<typename VectorDerived>
+    MotionSpherical operator* (const Eigen::MatrixBase<VectorDerived> & qdot) const
+    { return MotionSpherical(qdot); }
+  
+    Eigen::Matrix<Scalar,6,3> cross(const Motion & v) const
+    {
+      typedef Eigen::Matrix<Scalar,6,3> ReturnType;
+      ReturnType res(ReturnType::Zero());
+      
+      const Scalar & vx = v.linear()[0];
+      const Scalar & vy = v.linear()[1];
+      const Scalar & vz = v.linear()[2];
+      
+      const Scalar & wx = v.angular()[0];
+      const Scalar & wy = v.angular()[1];
+      const Scalar & wz = v.angular()[2];
+      
+      res.col(0).segment<3>(LINEAR)[1] = -vz;
+      res.col(0).segment<3>(LINEAR)[2] = vy;
+      res.col(0).segment<3>(ANGULAR)[1] = -wz;
+      res.col(0).segment<3>(ANGULAR)[2] = wy;
+      
+      res.col(1).segment<3>(LINEAR)[0] = vz;
+      res.col(1).segment<3>(LINEAR)[2] = -vx;
+      res.col(1).segment<3>(ANGULAR)[0] = wz;
+      res.col(1).segment<3>(ANGULAR)[2] = -wx;
+      
+      res.col(2).segment<3>(LINEAR)[0] = -vy;
+      res.col(2).segment<3>(LINEAR)[1] = vx;
+      res.col(2).segment<3>(ANGULAR)[0] = -wy;
+      res.col(2).segment<3>(ANGULAR)[1] = wx;
+      
+      return res;
+    }
 
     int nv_impl() const { return NV; }
-    
+  
     struct TransposeConst
     {
       Force::Vector3 operator* (const Force & phi)
@@ -162,14 +195,6 @@ namespace se3
     }
 
   }; // struct ConstraintRotationalSubspace
-
-  template<typename D>
-  Motion operator* (const ConstraintRotationalSubspace&, const Eigen::MatrixBase<D>& v)
-  {
-    EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(D,3);
-    return Motion (Motion::Vector3::Zero (), v);
-  }
-
 
   inline Motion operator^ (const Motion & m1, const MotionSpherical & m2)
   {

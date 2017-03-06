@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 // Copyright (c) 2015-2016 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 //
 // This file is part of Pinocchio
@@ -21,6 +21,7 @@
 
 #include "pinocchio/multibody/joint/joint-base.hpp"
 #include "pinocchio/multibody/constraint.hpp"
+#include "pinocchio/spatial/cartesian-axis.hpp"
 #include "pinocchio/math/sincos.hpp"
 #include "pinocchio/spatial/motion.hpp"
 #include "pinocchio/spatial/inertia.hpp"
@@ -121,7 +122,7 @@ namespace se3
   }; // struct traits ConstraintPlanar
 
 
-  struct ConstraintPlanar : ConstraintBase < ConstraintPlanar >
+  struct ConstraintPlanar : ConstraintBase<ConstraintPlanar>
   {
 
     SPATIAL_TYPEDEF_NO_TEMPLATE(ConstraintPlanar);
@@ -130,9 +131,29 @@ namespace se3
     typedef traits<ConstraintPlanar>::JointForce JointForce;
     typedef traits<ConstraintPlanar>::DenseBase DenseBase;
 
+    typedef CartesianAxisTpl<0,3,Scalar,Options> UnitX;
+    typedef CartesianAxisTpl<1,3,Scalar,Options> UnitY;
+    typedef CartesianAxisTpl<2,3,Scalar,Options> UnitZ;
 
     Motion operator* (const MotionPlanar & vj) const
     { return vj; }
+    
+  
+    DenseBase cross(const Motion & v) const
+    {
+      DenseBase res;
+      
+      UnitX::cross(v.angular(),res.col(0).segment<3>(LINEAR));
+      res.col(0).segment<3>(ANGULAR).setZero();
+      
+      UnitY::cross(v.angular(),res.col(1).segment<3>(LINEAR));
+      res.col(1).segment<3>(ANGULAR).setZero();
+      
+      UnitZ::cross(v.linear(),res.col(2).segment<3>(LINEAR));
+      UnitZ::cross(v.angular(),res.col(2).segment<3>(ANGULAR));
+      
+      return res;
+    }
 
     int nv_impl() const { return NV; }
 
@@ -167,23 +188,23 @@ namespace se3
 
     operator ConstraintXd () const
     {
-      Eigen::Matrix<Scalar,6,3> S;
-      S.block <3,3> (Inertia::LINEAR, 0).setZero ();
-      S.block <3,3> (Inertia::ANGULAR, 0).setZero ();
-      S(Inertia::LINEAR + 0,0) = 1.;
-      S(Inertia::LINEAR + 1,1) = 1.;
-      S(Inertia::ANGULAR + 2,2) = 1.;
+      DenseBase S;
+      S.block<3,3>(LINEAR,0).setZero();
+      S.block<3,3>(ANGULAR,0).setZero();
+      S(LINEAR + 0,0) = 1.;
+      S(LINEAR + 1,1) = 1.;
+      S(ANGULAR + 2,2) = 1.;
       return ConstraintXd(S);
     }
 
     Eigen::Matrix <Scalar,6,3> se3Action (const SE3 & m) const
     {
       Eigen::Matrix <double,6,3> X_subspace;
-      X_subspace.block <3,2> (Motion::LINEAR, 0) = m.rotation ().leftCols <2> ();
-      X_subspace.block <3,1> (Motion::LINEAR, 2) = skew (m.translation ()) * m.rotation ().rightCols <1> ();
+      X_subspace.block <3,2> (LINEAR, 0) = m.rotation ().leftCols <2> ();
+      X_subspace.block <3,1> (LINEAR, 2) = skew (m.translation ()) * m.rotation ().rightCols <1> ();
 
-      X_subspace.block <3,2> (Motion::ANGULAR, 0).setZero ();
-      X_subspace.block <3,1> (Motion::ANGULAR, 2) = m.rotation ().rightCols <1> ();
+      X_subspace.block <3,2> (ANGULAR, 0).setZero ();
+      X_subspace.block <3,1> (ANGULAR, 2) = m.rotation ().rightCols <1> ();
 
       return X_subspace;
     }

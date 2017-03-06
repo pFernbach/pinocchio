@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 // Copyright (c) 2015-2016 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 //
 // This file is part of Pinocchio
@@ -60,7 +60,7 @@ namespace se3
   {
     SPATIAL_TYPEDEF_NO_TEMPLATE(MotionTranslation);
 
-    MotionTranslation ()                   : v (Motion::Vector3 (NAN, NAN, NAN)) {}
+    MotionTranslation () : v (Motion::Vector3 (NAN, NAN, NAN)) {}
     MotionTranslation (const Motion::Vector3 & v) : v (v)  {}
     MotionTranslation (const MotionTranslation & other) : v (other.v)  {}
     Vector3 v;
@@ -68,10 +68,7 @@ namespace se3
     Vector3 & operator() () { return v; }
     const Vector3 & operator() () const { return v; }
 
-    operator Motion() const
-    {
-      return Motion (v, Motion::Vector3::Zero ());
-    }
+    operator Motion() const { return Motion (v, Motion::Vector3::Zero()); }
 
     MotionTranslation & operator= (const MotionTranslation & other)
     {
@@ -80,7 +77,7 @@ namespace se3
     }
   }; // struct MotionTranslation
 
-  inline const MotionTranslation operator+ (const MotionTranslation & m, const BiasZero &)
+  inline const MotionTranslation operator+(const MotionTranslation & m, const BiasZero &)
   { return m; }
 
   inline Motion operator+ (const MotionTranslation & m1, const Motion & m2)
@@ -118,7 +115,7 @@ namespace se3
     typedef Eigen::Matrix<Scalar,6,3> DenseBase;
   }; // traits ConstraintTranslationSubspace
 
-  struct ConstraintTranslationSubspace : ConstraintBase < ConstraintTranslationSubspace >
+  struct ConstraintTranslationSubspace : ConstraintBase<ConstraintTranslationSubspace>
   {
     SPATIAL_TYPEDEF_NO_TEMPLATE(ConstraintTranslationSubspace);
     enum { NV = 3, Options = 0 };
@@ -131,25 +128,41 @@ namespace se3
     { return Motion (vj (), Motion::Vector3::Zero ()); }
 
     int nv_impl() const { return NV; }
+    
+    Eigen::Matrix<Scalar,6,NV> cross(const Motion & v) const
+    {
+      typedef Eigen::Matrix<Scalar,6,NV> ReturnType;
+      ReturnType res(ReturnType::Zero());
+      
+      // X axis
+      res.col(0)[1] = -v.angular()[2];
+      res.col(0)[2] = v.angular()[1];
+      
+      // Y axis
+      res.col(1)[0] = v.angular()[2];
+      res.col(1)[2] = -v.angular()[0];
+      
+      // Z axis
+      res.col(2)[0] = -v.angular()[1];
+      res.col(2)[1] = v.angular()[0];
+      
+      return res;
+    }
 
     struct ConstraintTranspose
     {
       const ConstraintTranslationSubspace & ref;
       ConstraintTranspose(const ConstraintTranslationSubspace & ref) : ref(ref) {}
 
-      Force::Vector3 operator* (const Force & phi)
-      {
-        return phi.linear ();
-      }
-
-
+      Force::Vector3 operator* (const Force & phi) const { return phi.linear(); }
+      
       /* [CRBA]  MatrixBase operator* (Constraint::Transpose S, ForceSet::Block) */
       template<typename D>
-      friend typename Eigen::Matrix <typename Eigen::MatrixBase<D>::Scalar, 3, -1>
+      friend typename Eigen::MatrixBase<D>::template ConstNRowsBlockXpr<3>::Type
       operator*( const ConstraintTranspose &, const Eigen::MatrixBase<D> & F )
       {
         assert(F.rows()==6);
-        return  F.template middleRows <3> (Inertia::LINEAR);
+        return  F.template middleRows<3>(Inertia::LINEAR);
       }
     }; // struct ConstraintTranspose
 

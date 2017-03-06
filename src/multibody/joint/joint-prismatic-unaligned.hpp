@@ -126,6 +126,15 @@ namespace se3
       	EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(D,1);
       	return MotionPrismaticUnaligned(axis,v[0]); 
       }
+      
+      DenseBase cross(const Motion & v) const
+      {
+        DenseBase res;
+        res.segment<3>(LINEAR) = axis.cross(v.angular());
+        res.segment<3>(ANGULAR).setZero();
+        
+        return res;
+      }
 
       Vector6 se3Action (const SE3 & m) const
       {

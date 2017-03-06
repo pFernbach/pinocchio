@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2015-2016 CNRS
+// Copyright (c) 2015-2017 CNRS
 // Copyright (c) 2015-2016 Wandercraft, 86 rue de Paris 91400 Orsay, France.
 //
 // This file is part of Pinocchio
@@ -20,6 +20,7 @@
 #define __se3_joint_prismatic_hpp__
 
 #include "pinocchio/multibody/joint/joint-base.hpp"
+#include "pinocchio/spatial/cartesian-axis.hpp"
 #include "pinocchio/multibody/constraint.hpp"
 #include "pinocchio/spatial/inertia.hpp"
 
@@ -33,23 +34,41 @@ namespace se3
     template<int axis>
     struct CartesianVector3
     {
-      double v; 
-      CartesianVector3(const double & v) : v(v) {}
+      typedef double Scalar;
+      typedef Eigen::Matrix<Scalar,3,1> Vector3;
+      
+      CartesianVector3(const Scalar & v) : v(v) {}
       CartesianVector3() : v(NAN) {}
       
-      Eigen::Vector3d vector() const;
-      operator Eigen::Vector3d () const { return vector(); }
+      Vector3 vector() const;
+      operator Vector3() const { return vector(); }
+      
+      Scalar v;
     }; // struct CartesianVector3
-    template<> inline Eigen::Vector3d CartesianVector3<0>::vector() const { return Eigen::Vector3d(v,0,0); }
-    template<> inline Eigen::Vector3d CartesianVector3<1>::vector() const { return Eigen::Vector3d(0,v,0); }
-    template<> inline Eigen::Vector3d CartesianVector3<2>::vector() const { return Eigen::Vector3d(0,0,v); }
     
-    inline Eigen::Vector3d operator+ (const Eigen::Vector3d & v1,const CartesianVector3<0> & vx)
-    { return Eigen::Vector3d(v1[0]+vx.v,v1[1],v1[2]); }
-    inline Eigen::Vector3d operator+ (const Eigen::Vector3d & v1,const CartesianVector3<1> & vy)
-    { return Eigen::Vector3d(v1[0],v1[1]+vy.v,v1[2]); }
-    inline Eigen::Vector3d operator+ (const Eigen::Vector3d & v1,const CartesianVector3<2> & vz)
-    { return Eigen::Vector3d(v1[0],v1[1],v1[2]+vz.v); }
+    template<>
+    inline CartesianVector3<0>::Vector3 CartesianVector3<0>::vector() const
+    { return Vector3(v,0,0); }
+    template<>
+    inline CartesianVector3<1>::Vector3 CartesianVector3<1>::vector() const
+    { return Vector3(0,v,0); }
+    template<>
+    inline CartesianVector3<2>::Vector3 CartesianVector3<2>::vector() const
+    { return Vector3(0,0,v); }
+    
+    template<int axis, typename VectorDerived>
+    inline typename CartesianVector3<axis>::Vector3 operator+(const Eigen::MatrixBase<VectorDerived> & v,
+                                                              const CartesianVector3<axis> & cv)
+    {
+      EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(VectorDerived,3);
+      typedef typename CartesianVector3<axis>::Vector3 ReturnType;
+      
+      ReturnType res(v);
+      res[axis] += cv.v;
+      
+      return res;
+    }
+    
   } // namespace prismatic
 
   template <int axis> struct MotionPrismatic;
@@ -85,8 +104,8 @@ namespace se3
     SPATIAL_TYPEDEF_TEMPLATE(MotionPrismatic);
 
     MotionPrismatic()                   : v(NAN) {}
-    MotionPrismatic( const double & v ) : v(v)  {}
-    double v;
+    MotionPrismatic( const Scalar & v ) : v(v)  {}
+    Scalar v;
 
     operator Motion() const
     { 
@@ -144,12 +163,23 @@ namespace se3
     typedef typename traits<ConstraintPrismatic>::JointMotion JointMotion;
     typedef typename traits<ConstraintPrismatic>::JointForce JointForce;
     typedef typename traits<ConstraintPrismatic>::DenseBase DenseBase;
+    
+    typedef CartesianAxisTpl<axis,3,Scalar,Options> CartesianAxis;
 
     template<typename D>
     MotionPrismatic<axis> operator*( const Eigen::MatrixBase<D> & v ) const
     {
 //        EIGEN_STATIC_ASSERT_SIZE_1x1(D); // There is actually a bug in Eigen with such a macro
       return MotionPrismatic<axis>(v[0]);
+    }
+  
+    DenseBase cross(const Motion & v) const
+    {
+      DenseBase res;
+      CartesianAxis::cross(v.angular(),res.template segment<3>(LINEAR));
+      res.template segment<3>(ANGULAR).setZero();
+      
+      return res;
     }
 
     Eigen::Matrix<double,6,1> se3Action(const SE3 & m) const
