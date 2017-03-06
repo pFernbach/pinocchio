@@ -95,6 +95,11 @@ namespace se3
     /// subtree[j] corresponds to the subtree supported by the joint j.
     /// The first element of subtree[j] is the index of the joint j itself.
     std::vector<IndexVector> subtrees;
+    
+    /// \brief Vector of supports
+    /// support[j] is the set of joints that support the joint j (all its parents).
+    /// The last element of subtree[j] is the index of the joint j itself.
+    std::vector<IndexVector> supports;
 
     /// \brief Spatial gravity of the model.
     Motion gravity;
@@ -115,6 +120,7 @@ namespace se3
       , parents(1, 0)
       , names(1)
       , subtrees(1)
+      , supports(1)
       , gravity( gravity981,Eigen::Vector3d::Zero() )
     {
       names[0]     = "universe";     // Should be "universe joint (trivial)"

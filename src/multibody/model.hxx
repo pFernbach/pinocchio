@@ -99,6 +99,11 @@ namespace se3
     subtrees.push_back(IndexVector(1));
     subtrees[idx][0] = idx;
     addJointIndexToParentSubtrees(idx);
+    
+    /// Init and then compute the support
+    supports.push_back(supports[parent]);
+    supports[idx].push_back(idx);
+    
     return idx;
   }
 
