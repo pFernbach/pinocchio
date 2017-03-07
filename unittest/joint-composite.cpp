@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2016 CNRS
+// Copyright (c) 2017 CNRS
 //
 // This file is part of Pinocchio
 // Pinocchio is free software: you can redistribute it
@@ -58,6 +58,7 @@ void test_joint_methods(const JointModelBase<JointModel> & jmodel, JointModelCom
   
   jmodel_composite.calc(jdata_composite,q);
   BOOST_CHECK(jdata_composite.M.isApprox((SE3)jdata.M));
+  BOOST_CHECK(jdata_composite.S.matrix().isApprox(((ConstraintXd)jdata.S).matrix()));
   
   q = jmodel.randomConfiguration(ql,qu);
   TangentVector_t v = TangentVector_t::Random(jmodel.nv());
@@ -67,6 +68,7 @@ void test_joint_methods(const JointModelBase<JointModel> & jmodel, JointModelCom
   BOOST_CHECK(jdata_composite.M.isApprox((SE3)jdata.M));
   BOOST_CHECK(jdata_composite.v.isApprox((Motion)jdata.v));
   BOOST_CHECK(jdata_composite.c.isApprox((Motion)jdata.c));
+  BOOST_CHECK(jdata_composite.S.matrix().isApprox(((ConstraintXd)jdata.S).matrix()));
   
   {
     VectorXd q1(jmodel.random());
