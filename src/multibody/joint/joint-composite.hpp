@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2016 CNRS
+// Copyright (c) 2017 CNRS
 //
 // This file is part of Pinocchio
 // Pinocchio is free software: you can redistribute it
@@ -207,7 +207,6 @@ namespace se3
       assert(data.joints.size() == joints.size());
       
       Transformation_t M_tmp;
-      Constraint_t::DenseBase S_tmp(6,max_nv);
       
       for (int k = (int)(joints.size()-1); k >= 0; --k)
       {
@@ -226,10 +225,9 @@ namespace se3
           M_tmp = jointPlacements[(size_t)k+1] * joint_transform(data.joints[(size_t)k+1]);
           data.iMlast[(size_t)k] = M_tmp * data.iMlast[(size_t)k+1];
           
-          S_tmp.leftCols(m_nvs[(size_t)k]) = constraint_xd(jdata).matrix();
-          motionSet::se3Action(data.iMlast[(size_t)k].inverse(),
-                               S_tmp.leftCols(m_nvs[(size_t)k]),
-                               data.S.matrix().middleCols(idx_v,m_nvs[(size_t)k]));
+          motionSet::se3ActionInverse(data.iMlast[(size_t)k],
+                                      constraint_xd(jdata).matrix(),
+                                      data.S.matrix().middleCols(idx_v,m_nvs[(size_t)k]));
         }
       }
       
@@ -245,8 +243,6 @@ namespace se3
       Transformation_t M_tmp;
       Motion v_tmp;
       Motion bias_tmp;
-      Constraint_t::DenseBase S_tmp(6,max_nv);
-      
       
       for (int k = (int)(joints.size()-1); k >= 0; --k)
       {
@@ -272,10 +268,9 @@ namespace se3
           bias_tmp = bias(jdata);
           data.c += data.iMlast[(size_t)k].actInv(bias_tmp);
           
-          S_tmp.leftCols(m_nvs[(size_t)k]) = constraint_xd(jdata).matrix();
-          motionSet::se3Action(data.iMlast[(size_t)k].inverse(),
-                               S_tmp.leftCols(m_nvs[(size_t)k]),
-                               data.S.matrix().middleCols(idx_v,m_nvs[(size_t)k]));
+          motionSet::se3ActionInverse(data.iMlast[(size_t)k],
+                                      constraint_xd(jdata).matrix(),
+                                      data.S.matrix().middleCols(idx_v,m_nvs[(size_t)k]));
         }
       }
       
